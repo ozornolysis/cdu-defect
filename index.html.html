@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>1973 Stock CDU Defect Finder</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#14181f;--mut:#5b6472;--bd:#d5d9e0;--ac:#0b57d0;--lit:#f5a300;--litx:#1a1200;--ok:#1b7f3b;--wa:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101318;--card:#1a1f27;--tx:#e8ebf0;--mut:#9aa4b2;--bd:#2f3744;--ac:#7aa7ff;--ok:#5fd18a;--wa:#ff8a80}}
+:root[data-theme="dark"]{--bg:#101318;--card:#1a1f27;--tx:#e8ebf0;--mut:#9aa4b2;--bd:#2f3744;--ac:#7aa7ff;--ok:#5fd18a;--wa:#ff8a80}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:0 0 4px}h2{font-size:1.05rem;margin:0 0 8px}
+p.s{color:var(--mut);margin:0 0 14px;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.lt{border:2px solid var(--bd);background:var(--bg);color:var(--mut);border-radius:10px;padding:10px 3px;font:inherit;font-weight:600;font-size:clamp(.62rem,2.2vw,.85rem);cursor:pointer;min-height:64px;line-height:1.2}
+.lt.on{background:var(--lit);border-color:var(--lit);color:var(--litx);box-shadow:0 0 12px var(--lit)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+button.b{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;padding:9px 14px;cursor:pointer}
+button.b.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button.b.p{color:#0a1020}}
+.q{border-left:4px solid var(--ac);padding-left:10px;margin:8px 0}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;border-radius:99px;padding:2px 9px;margin-left:6px;vertical-align:middle}
+.t1{background:var(--ok);color:#fff}.t2{background:var(--bd);color:var(--tx)}
+.eff{color:var(--wa);font-weight:600;margin:4px 0}
+ol,ul{margin:6px 0 6px 20px;padding:0}li{margin:3px 0}
+.psad{background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:.92rem}
+details{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--card)}
+summary{cursor:pointer;font-weight:600}
+.lights{font-size:.82rem;color:var(--mut)}
+</style></head><body><main>
+<h1>CDU Defect Finder</h1>
+<p class="s">1973 Stock. Tap the lights that are lit on the CDU. Answer any follow-up questions to narrow it down. Training aid based on the stock cards. Always follow the Rule Book and Controller instructions.</p>
+
+<div class="card"><h2>1. What’s lit on the CDU?</h2>
+<div class="grid" id="lights"></div>
+<div class="row"><button class="b" id="blank">CDU display is blank</button><button class="b" id="reset">Reset</button></div></div>
+
+<div id="qbox"></div>
+<div id="out"></div>
+
+<details><summary>Quick reference: fuses, MCBs, ATOP</summary>
+<p><b>20 Amp No 1 Fuse:</b> Traction A, Round Train Circuit, Full Speed Safety Brake, Service Brake Decode Relay, Braking (Motor).</p>
+<p><b>20 Amp No 2 Fuse:</b> Traction D, Slow Speed Safety Circuit, MA Trip, Braking (Trailer).</p>
+<p><b>Blank but pilot light on:</b> 20 Amp Clean Fuse. <b>Blank and no pilot light:</b> 40 Amp Door &amp; Auxiliary Fuse.</p>
+<p><b>Seven Safety Brake MCBs:</b> Round Train, Full Speed, Slow Speed, Service Brake Decode Relay, Braking Motor, Braking Trailer, Braking Control (MCB in UMDM). Emergency brake if Round Train, Full or Slow Speed trips; sluggish if Braking ones trip.</p>
+<p><b>ATOP:</b> A = Air, T = Traction, O = Overloads, P = Pilot light.</p></details>
+
+<script>
+const LT={RT:"Round Train Lost",SBC:"Safety Brake Circuit Lost",BF:"Brake Feed Lost",SBF:"Service Brake Fault",ABO:"Air Brake On",SHED:"Motoring on Shed Plug",MOT:"Motoring Train Doors",CF:"Control Feed Lost",TF:"Tripcock Front",TO:"Other Cab On"};
+const Q={pilot:"Is the pilot light lit?",air:"Is main line air pressure falling (air decreasing)?",slow:"Select Slow Speed: do the Safety Brake Circuit and Brake Feed lights stay lit?"};
+const D=[
+{n:"Round Train MCB",l:["RT","SBC","BF","TF"],e:"Emergency Brake",s:["Check ATOP and CDU","Trip and reset Round Train MCB","Slow Speed selected for 3 minutes","Cut out Round Train","Select Slow Speed","Out of service at next station, detrain"],p:"Tripcock cannot be reset: gain track access and TCIS cut out, slow speed, 2nd member of staff as tripcock. Use round train cut out switch to stop train in emergency."},
+{n:"Full / Slow Speed Safety Brake MCB",l:["SBC","BF"],e:"Emergency Brake",q:{slow:0},s:["Check ATOP and CDU","Select Slow Speed (for diagnosis) then return to Full Speed","Trip and set Full Speed Safety Brake MCB","Select Slow Speed and proceed to next station","Out of service at next station, detrain","Slow Speed limit cut out"],p:"When applying the rule, slow speed limit must be cut back in for the duration of the rule. If slow speed is lost, wait 3 minutes then self regulate speed."},
+{n:"Service Brake Decode Relay MCB",l:["SBC","BF"],e:"Emergency Brake",q:{slow:1},s:["Check ATOP and CDU","Select Slow Speed (for diagnosis). Lights should remain illuminated in both circuits. Remain in slow speed if confirmed","Trip and set Service Brake Decode Relay MCB","Cut out Service Brake","Out of service at next station, detrain"],x:"No service brake, emergency brakes only. 25 MPH max."},
+{n:"Local Brake MCB",l:["SBF","BF"],e:"Sluggish movement",s:["Check ATOP and CDU","Press ‘Examine’ to find location of brakes hanging on","If car 1 or 2: trip and set MCB for braking motor or trailer","If car 3 to 6: Brake Isolation Switch","At next station, trip and set MCB for relevant car","BIC and BRV (tell Controller, make PA, secure train)","Out of service at next station, detrain"]},
+{n:"Door Interlock MCB",l:["MOT"],e:"No motoring (coasting)",q:{pilot:0},s:["Check ATOP and CDU. No pilot light","CDU shows no doors open, which is a conflict","Trip and set Door Interlock MCB","Cut out Train and Cab Doors","Out of service at next station, detrain"],x:"15 MPH. Doors can open anytime, anywhere. Prove the platform at the next station and use bulkhead buttons."},
+{n:"Traction A / D MCB",l:["CF"],e:"Half motors / slow train",s:["Check ATOP and CDU","Trip and set Traction A and D MCB","Out of service at next station, detrain"]},
+{n:"20 Amp Control & Brake Fuse No 1",l:["RT","SBC","BF","CF","TF"],e:"Emergency Brake",s:["Check ATOP and CDU","Cut out Round Train","Select Slow Speed","Cut out Service Brake","BIC and BRV Car 1 (tell Controller, make PA, secure train)","Out of service at next station, detrain"],p:"Tripcock cannot be reset if tripped: gain track access and TCIS cut out, slow speed, 2nd member of staff as tripcock. Use round train cut out switch to stop train in emergency.",x:"No service brake application, emergency brakes only."},
+{n:"20 Amp Control & Brake Fuse No 2",l:["SBC","BF","SBF","CF"],e:"Half motors, dragging, trailer sluggish",s:["Check ATOP and CDU","Brake Isolation Switch for Car 2","BIC and BRV Car 2 (tell Controller, make PA, secure train)","Out of service at next station, detrain"],p:"No slow speed, wait 3 minutes. In full speed, self regulate speed during carrying out rule."},
+{n:"40 Amp Door & Auxiliary Fuse",l:[],bl:1,q:{pilot:0},e:"Darkness, emergency brake, door button failure, comms loss, PA loss, Toblerone loss",s:["Check ATOP and CDU. Emergency saloon lighting gone. NO PILOT LIGHT","Cut out RPS, Train doors and Cab doors","Use lamp as headlight","Call Controller on hand held radio for assistance at next station","At next station, J door to driver’s emergency door valve","Detrain with butterfly cocks","Go to rear cab and make PA","Close all doors via butterfly cocks and valves","Out of service"],p:"No speed sensing therefore no slow speed, wait 3 minutes. In full speed, self regulate speed during carrying out rule.",x:"15 MPH."},
+{n:"20 Amp Clean Feed Fuse",l:[],bl:1,q:{pilot:1},e:"Console door button failure, comms loss, PA loss, Toblerone loss",s:["Check ATOP and CDU. Emergency saloon lighting gone","Trip and set Gassing Switch Relay MCB","Out of service at next station, detrain"],p:"No speed sensing therefore no slow speed, wait 3 minutes. In full speed, self regulate speed during carrying out rule."},
+{n:"Loss of Safety Circuit (1 light, 3 defects)",l:["SBC"],e:"Emergency Brake",s:["Check ATOP and CDU","Pump Deadman’s Handle in both full and slow speed","Trip and set RPS MCB then cut out RPS","Brake test 1 and 2 in both speeds","Gain track access and TCIS cut out","Out of service at next station, detrain"],p:"2nd member of staff as tripcock. Push plunger."},
+{n:"Front Tripcock Tripped",l:["SBC","TF"],e:"Emergency Brake",q:{air:0},s:["Check ATOP and CDU","Call Controller and wait for authority to proceed","Follow the rule","Reset tripcock"]},
+{n:"Rear Tripcock Tripped",l:["RT","SBC"],e:"Emergency Brake",q:{air:0},s:["Check ATOP and CDU. No Sonalert","Cut out Round Train","Select Slow Speed to next station","Call Controller, make a PA and secure train","Go to rear cab, open up, reset tripcock, shut down","Back to front cab, cut in Round Train and Full Speed (if that fails, gain track access and rear TCIS cut out)"],p:"If still faulty when changing ends get 2nd member of staff as tripcock. Use Round Train cut out switch to stop train in emergency."},
+{n:"Main Line Burst: Coupler",l:["RT","SBC","TF"],e:"Emergency Brake",q:{air:1},s:["Check ATOP and CDU. Air decreasing","Trip and set Compressor Control MCB","Call Controller, make a PA and secure train","Go to Car 2 and listen for compressor running","Go to middle of train and operate both MLICs","Check main line air pressure gauge on both units","Out of service at next station, detrain"],x:"No air behind interlock wedges. Go slowly. MLIC panels open in saloons."},
+{n:"Main Line Burst: Rear",l:["RT","SBC"],e:"Emergency Brake",q:{air:1},s:["Check ATOP and CDU. Air decreasing","Trip and set Compressor Control MCB","Call Controller, make a PA and secure train","Go to Car 2 and listen for compressor running","Go to middle of train and operate both MLICs","Check main line air pressure gauge on both units","Go to rear cab and trip Compressor Control MCB","Cut out TCIS","BIC and BRV in Car 6","Cut out Compressor on Car 5","BIC and BRV in Car 4","At next station do not open doors with buttons. Butterfly cars 1, 2, 3 and driver door valve","Tell customers to exit via cars 1, 2, 3","Out of service, detrain"],p:"Turn Safety Brake Feed selector to Full Speed or normalise Round Train cut out switch to stop train in emergency, as the emergency plunger won’t work with Round Train cut out.",x:"No motors in cars 4 and 6. Spring applied parking brakes on in cars 4 and 6. Door interlock and Round Train may break due to strain on coupler face. Train door cut out, Cab door cut out, Round Train cut out, select Slow Speed. If burst is serious, Tripcock Front will also be lit."},
+{n:"Main Line Burst: Front",l:["SBC","TF"],e:"Emergency Brake",q:{air:1},s:["Check ATOP and CDU. Air decreasing","Trip and set Compressor Control MCB","Go to Car 2 and listen for compressor running","Go to middle of train and operate both MLICs","Check main line air pressure gauge on both units","Go to front cab and trip Compressor Control MCB","Cut out TCIS","Select Slow Speed","BIC and BRV in Car 3","Cut out Compressor on Car 2","BIC and BRV in Car 1","At next station do not open doors with buttons. Butterfly cars 4, 5, 6 and driver door valve","Tell customers to exit via cars 4, 5, 6","Out of service, detrain"],p:"Need 2nd member of staff to act as tripcock. Turn Round Train cut out switch to stop train in emergency.",x:"If burst is serious, Round Train will also be lit."}
+];
+let sel=new Set(),blank=false,ans={};
+const $=id=>document.getElementById(id);
+const esc=t=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function build(){$("lights").innerHTML=Object.keys(LT).map(k=>`<button class="lt ${sel.has(k)?"on":""}" data-k="${k}">${LT[k]}</button>`).join("");
+$("blank").className="b"+(blank?" p":"")}
+$("lights").onclick=e=>{const k=e.target.dataset.k;if(!k)return;blank=false;sel.has(k)?sel.delete(k):sel.add(k);ans={};build();calc()};
+$("blank").onclick=()=>{blank=!blank;if(blank)sel.clear();ans={};build();calc()};
+$("reset").onclick=()=>{sel.clear();blank=false;ans={};build();calc()};
+function score(d){const L=new Set(d.l);let s=0;
+if(blank)return d.bl?10:-1;
+if(d.bl)return -1;
+let hit=0,extra=0,miss=0;sel.forEach(k=>L.has(k)?hit++:extra++);L.forEach(k=>{if(!sel.has(k))miss++});
+if(!hit)return -1;return hit*2-extra*2-miss*.5+(extra==0&&miss==0?5:0)}
+function calc(){const out=$("out"),qb=$("qbox");
+if(!sel.size&&!blank){out.innerHTML="";qb.innerHTML="";return}
+let r=D.map(d=>({d,s:score(d)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+if(!r.length){qb.innerHTML="";out.innerHTML='<div class="card">No card matches that exact combination. Recheck the lights, or follow the Rule Book and call the Controller.</div>';return}
+const top=r[0].s;let lead=r.filter(x=>x.s===top);
+for(const k in ans)lead=lead.filter(x=>!x.d.q||x.d.q[k]===undefined||x.d.q[k]===ans[k]);
+let qs="";
+if(lead.length>1){for(const k in Q){if(k in ans)continue;const v=new Set(lead.map(x=>x.d.q&&x.d.q[k]).filter(v=>v!==undefined));
+if(v.size>1){qs+=`<div class="q"><b>${Q[k]}</b><div class="row"><button class="b p" data-q="${k}" data-v="1">Yes</button><button class="b p" data-q="${k}" data-v="0">No</button></div></div>`;break}}}
+qb.innerHTML=(lead.length>1?`<div class="card"><h2>2. Narrowing it down</h2><p class="s">${lead.length} defects fit so far.</p>${qs||'<p class="s">Nothing more on the cards separates these. Check each below and use ‘Examine’, ATOP and the CDU to decide.</p>'}</div>`:"");
+const rest=r.filter(x=>!lead.includes(x));
+let h=`<h2>${lead.length==1?"Likely defect":"Most likely"}</h2>`+lead.map((x,i)=>card(x,1,lead.length==1||i==0&&false)).join("");
+if(rest.length)h+=`<h2 style="margin-top:18px">Other possibilities</h2>`+rest.map(x=>card(x,0,0)).join("");
+out.innerHTML=h}
+function card(x,top,open){const d=x.d;
+const body=`<div class="lights">Lights: ${d.l.length?d.l.map(k=>LT[k]).join(", "):"CDU blank"}</div><div class="eff">Effect: ${esc(d.e)}</div><ol>${d.s.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>${d.x?`<ul><li>${esc(d.x)}</li></ul>`:""}${d.p?`<div class="psad"><b>PSAD:</b> ${esc(d.p)}</div>`:""}`;
+return `<details ${top?"open":""}><summary>${esc(d.n)}<span class="tag ${top?"t1":"t2"}">${top?"Best fit":"Possible"}</span></summary>${body}</details>`}
+$("qbox").onclick=e=>{const k=e.target.dataset.q;if(!k)return;ans[k]=+e.target.dataset.v;calc()};
+build();
+</script></main></body></html>
